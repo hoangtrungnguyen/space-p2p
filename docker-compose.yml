@@ -1,0 +1,24 @@
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml
+    ports:
+      - "7880:7880" # HTTP API
+      - "7881:7881" # WebRTC TCP
+      - "50000-50050:50000-50050/udp" # WebRTC UDP (reduced range for local testing)
+    environment:
+      - "LIVEKIT_KEYS=devkey: secret"
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - LIVEKIT_API_KEY=devkey
+      - LIVEKIT_API_SECRET=secret
+      - LIVEKIT_HOST=http://livekit:7880
+      - PORT=8080
+    depends_on:
+      - livekit

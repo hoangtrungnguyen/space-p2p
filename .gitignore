@@ -1,0 +1,17 @@
+# Binaries
+space-p2p
+space-p2p-server
+server
+
+# SQLite
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Environment
+.env
+
+# Go
+go.sum
+vendor/
