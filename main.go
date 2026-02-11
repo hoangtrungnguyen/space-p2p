@@ -59,12 +59,14 @@ func main() {
 	r.GET("/rooms", listRooms)
 	r.POST("/token", generateToken)
 	r.DELETE("/rooms/:room", deleteRoom)
+	r.GET("/rooms/:room/participants/count", getRoomParticipantCount)
 
 	// Canvas Space Routes
 	r.POST("/canvas-spaces/token", generateTokenForCanvasSpace)
 	r.GET("/canvas-spaces", listCanvasSpaces)
 	r.GET("/canvas-spaces/:id", getCanvasSpace)
 	r.DELETE("/canvas-spaces/:id", deleteCanvasSpace)
+	r.GET("/canvas-spaces/:id/participants/count", getCanvasSpaceParticipantCount)
 
 	log.Printf("Server starting on port %s", config.Port)
 	if err := r.Run(":" + config.Port); err != nil {
@@ -120,6 +122,22 @@ func listRooms(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, res.Rooms)
+}
+
+func getRoomParticipantCount(c *gin.Context) {
+	roomName := c.Param("room")
+	res, err := roomClient.ListParticipants(context.Background(), &livekit.ListParticipantsRequest{
+		Room: roomName,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"room_name": roomName,
+		"count":     len(res.Participants),
+	})
 }
 
 func generateToken(c *gin.Context) {
@@ -227,6 +245,33 @@ func getCanvasSpace(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, cs)
+}
+
+func getCanvasSpaceParticipantCount(c *gin.Context) {
+	id := c.Param("id")
+	cs, err := canvasRepo.GetByCanvasSpaceID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if cs == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Canvas space not found"})
+		return
+	}
+
+	res, err := roomClient.ListParticipants(context.Background(), &livekit.ListParticipantsRequest{
+		Room: cs.RoomName,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"canvas_space_id": id,
+		"room_name":       cs.RoomName,
+		"count":           len(res.Participants),
+	})
 }
 
 func deleteCanvasSpace(c *gin.Context) {

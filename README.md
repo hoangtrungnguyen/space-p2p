@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-# space-p2p
-=======
 # LiveKit P2P Session Manager (Go)
 
 This project provides a Go-based backend to manage LiveKit rooms and generate access tokens (JWTs) for peer-to-peer sessions using the LiveKit SFU.
@@ -58,6 +55,9 @@ This project provides a Go-based backend to manage LiveKit rooms and generate ac
 ### 4. Delete a Room
 **DELETE** `/rooms/:room_name`
 
+### 5. Get Participant Count
+**GET** `/rooms/:room_name/participants/count`
+
 ## Canvas Space API
 
 ### 1. Generate Token (with Auto-Room Creation)
@@ -86,6 +86,9 @@ Maps a `canvas_space_id` to a LiveKit room. If no room is mapped, creates a new 
 ### 4. Delete Canvas Space Mapping
 **DELETE** `/canvas-spaces/:id`
 
+### 5. Get Participant Count for Canvas Space
+**GET** `/canvas-spaces/:id/participants/count`
+
 ## Architecture
 
 This server acts as a **Signaling & Management** layer.
@@ -93,5 +96,3 @@ This server acts as a **Signaling & Management** layer.
 - Using the returned JWT, clients connect directly to the LiveKit SFU (WebRTC).
 - Media and data are then synchronized between peers via the LiveKit protocol.
 - **SQLite** is used to persist mappings between `canvas_space_id` and LiveKit `room_name`.
-
->>>>>>> 8842f0e (feat: implementation Canvas Space CRUD with SQLite)
