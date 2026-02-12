@@ -34,7 +34,7 @@ echo ""
 # STEP 1: Cross-compile the Go binary for Linux amd64
 # ==============================================================================
 echo "🔨 Step 1: Building Linux binary..."
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o "$BINARY_NAME" main.go
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o "$BINARY_NAME" .
 echo "   ✅ Built: $BINARY_NAME ($(du -h $BINARY_NAME | cut -f1))"
 echo ""
 
@@ -43,11 +43,12 @@ echo ""
 # ==============================================================================
 echo "📦 Step 2: Uploading files to VPS..."
 
-ssh "$VPS_USER@$VPS_IP" "mkdir -p $DEPLOY_DIR"
+ssh "$VPS_USER@$VPS_IP" "mkdir -p $DEPLOY_DIR && sudo systemctl stop $SERVICE_NAME || true"
 
-scp "$BINARY_NAME" \
+scp -r "$BINARY_NAME" \
     .env \
     livekit.yaml \
+    public \
     "$VPS_USER@$VPS_IP:$DEPLOY_DIR/"
 
 echo "   ✅ Files uploaded to $DEPLOY_DIR"

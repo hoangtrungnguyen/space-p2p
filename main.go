@@ -55,6 +55,9 @@ func main() {
 	r := gin.Default()
 
 	// Routes
+	r.GET("/", func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, "/admin")
+	})
 	r.POST("/rooms", createRoom)
 	r.GET("/rooms", listRooms)
 	r.POST("/token", generateToken)
