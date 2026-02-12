@@ -15,3 +15,7 @@ data/
 # Go
 go.sum
 vendor/
+
+# Test artifacts
+coverage.out
+test_binary

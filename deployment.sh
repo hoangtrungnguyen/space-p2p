@@ -54,40 +54,58 @@ echo "   ✅ Files uploaded to $DEPLOY_DIR"
 echo ""
 
 # ==============================================================================
-# STEP 3: Setup LiveKit in Docker on VPS
+# STEP 3: Setup LiveKit Server (Binary) on VPS
 # ==============================================================================
-echo "🐳 Step 3: Setting up LiveKit Docker container on VPS..."
+echo "🎥 Step 3: Setting up LiveKit Server..."
 
 ssh "$VPS_USER@$VPS_IP" bash -s "$DEPLOY_DIR" << 'REMOTE_LIVEKIT'
 DEPLOY_DIR="$1"
+LK_VERSION="v1.8.0" # You can update this version
+LK_BINARY_URL="https://github.com/livekit/livekit/releases/download/${LK_VERSION}/livekit_${LK_VERSION#v}_linux_amd64.tar.gz"
 
-# Check if Docker is installed
-if ! command -v docker &> /dev/null; then
-    echo "   Installing Docker..."
-    curl -fsSL https://get.docker.com | sh
-    sudo systemctl enable docker
-    sudo systemctl start docker
+cd "$DEPLOY_DIR"
+
+# Check if livekit-server binary exists, if not download it
+if [ ! -f "livekit-server" ]; then
+    echo "   Downloading LiveKit Server ${LK_VERSION}..."
+    if command -v curl &> /dev/null; then
+        curl -L -o livekit.tar.gz "$LK_BINARY_URL"
+    else
+        wget -O livekit.tar.gz "$LK_BINARY_URL"
+    fi
+    
+    echo "   Extracting LiveKit Server..."
+    tar -xzf livekit.tar.gz
+    rm livekit.tar.gz
+    chmod +x livekit-server
 fi
 
-# Update livekit.yaml to bind to all interfaces (for VPS)
-# Remove the redis section if present (not needed for single-node)
-sed -i '/^redis:/,/^[^ ]/{ /^redis:/d; /^  /d; }' "$DEPLOY_DIR/livekit.yaml"
+# Create systemd service for LiveKit
+echo "   Creating LiveKit systemd service..."
+sudo tee "/etc/systemd/system/livekit-server.service" > /dev/null << EOF
+[Unit]
+Description=LiveKit Server
+After=network.target
 
-# Stop existing LiveKit container if running
-docker rm -f livekit-server 2>/dev/null || true
+[Service]
+Type=simple
+User=root
+WorkingDirectory=$DEPLOY_DIR
+ExecStart=$DEPLOY_DIR/livekit-server --config $DEPLOY_DIR/livekit.yaml
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
 
-# Start LiveKit server
-docker run -d \
-    --name livekit-server \
-    --restart unless-stopped \
-    -p 7880:7880 \
-    -p 7881:7881 \
-    -p 50000-60000:50000-60000/udp \
-    -v "$DEPLOY_DIR/livekit.yaml:/etc/livekit.yaml" \
-    livekit/livekit-server:latest \
-    --config /etc/livekit.yaml
+[Install]
+WantedBy=multi-user.target
+EOF
 
-echo "   ✅ LiveKit container started"
+# Reload and start LiveKit
+sudo systemctl daemon-reload
+sudo systemctl enable livekit-server
+sudo systemctl restart livekit-server
+
+echo "   ✅ LiveKit Server started"
 REMOTE_LIVEKIT
 
 echo ""
@@ -110,8 +128,8 @@ chmod +x "$DEPLOY_DIR/$BINARY_NAME"
 sudo tee "/etc/systemd/system/$SERVICE_NAME.service" > /dev/null << EOF
 [Unit]
 Description=Space P2P Session Manager
-After=network.target docker.service
-Wants=docker.service
+After=network.target livekit-server.service
+Wants=livekit-server.service
 
 [Service]
 Type=simple
@@ -170,12 +188,10 @@ echo "🔍 Step 6: Verifying deployment..."
 ssh "$VPS_USER@$VPS_IP" bash -s "$SERVICE_NAME" << 'REMOTE_VERIFY'
 SERVICE_NAME="$1"
 
-echo "   --- Service Status ---"
-sudo systemctl status "$SERVICE_NAME" --no-pager -l | head -15
-
+echo "   --- Services Status ---"
+sudo systemctl status "$SERVICE_NAME" --no-pager -l | head -10
 echo ""
-echo "   --- LiveKit Container ---"
-docker ps --filter name=livekit-server --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+sudo systemctl status livekit-server --no-pager -l | head -10
 
 echo ""
 echo "   --- Quick API Test ---"
@@ -198,9 +214,9 @@ echo "  LiveKit:      http://$VPS_IP:7880"
 echo ""
 echo "  Useful commands (run on VPS):"
 echo "    sudo systemctl status $SERVICE_NAME"
-echo "    sudo systemctl restart $SERVICE_NAME"
+echo "    sudo systemctl status livekit-server"
 echo "    sudo journalctl -u $SERVICE_NAME -f"
-echo "    docker logs -f livekit-server"
+echo "    sudo journalctl -u livekit-server -f"
 echo ""
 echo "  ⚠️  IMPORTANT: Update your .env on the VPS!"
 echo "  Set LIVEKIT_HOST=http://$VPS_IP:7880"

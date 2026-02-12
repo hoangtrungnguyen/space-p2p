@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space P2P Admin</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent: #38bdf8;
+            --border: #334155;
+            --danger: #ef4444;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 2rem;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 2rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #38bdf8, #818cf8);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .refresh-btn {
+            background-color: var(--accent);
+            color: #000;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            float: right;
+        }
+
+        .refresh-btn:hover {
+            opacity: 0.9;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 0.75rem;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th {
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+
+        td {
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        tr:hover td {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background-color: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+        }
+
+        .empty-state {
+            padding: 3rem;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <button class="refresh-btn" onclick="loadData()">Refresh Data</button>
+        <h1>Space P2P Admin</h1>
+
+        <h2>Active Rooms (LiveKit)</h2>
+        <div class="card">
+            <div id="rooms-table-container">
+                <div class="empty-state">Loading...</div>
+            </div>
+        </div>
+
+        <h2>Canvas Spaces (Database)</h2>
+        <div class="card">
+            <div id="spaces-table-container">
+                <div class="empty-state">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function fetchRooms() {
+            try {
+                const response = await fetch('/rooms?active=true');
+                if (!response.ok) throw new Error('Failed to fetch rooms');
+                const rooms = await response.json();
+                return rooms || [];
+            } catch (error) {
+                console.error('Error fetching rooms:', error);
+                return [];
+            }
+        }
+
+        async function fetchCanvasSpaces() {
+            try {
+                const response = await fetch('/canvas-spaces');
+                if (!response.ok) throw new Error('Failed to fetch canvas spaces');
+                const spaces = await response.json();
+                return spaces || [];
+            } catch (error) {
+                console.error('Error fetching canvas spaces:', error);
+                return [];
+            }
+        }
+
+        function renderRoomsTable(rooms) {
+            const container = document.getElementById('rooms-table-container');
+
+            if (rooms.length === 0) {
+                container.innerHTML = '<div class="empty-state">No active rooms found</div>';
+                return;
+            }
+
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Room Name</th>
+                            <th>Participants</th>
+                            <th>Creation Time</th>
+                            <th>Metadata</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            rooms.forEach(room => {
+                const created = new Date(room.creation_time * 1000).toLocaleString();
+                html += `
+                    <tr>
+                        <td style="font-weight: 500">${room.name}</td>
+                        <td><span class="badge badge-success">${room.num_participants} Active</span></td>
+                        <td style="color: var(--text-secondary)">${created}</td>
+                        <td style="color: var(--text-secondary)">${room.metadata || '-'}</td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        function renderSpacesTable(spaces) {
+            const container = document.getElementById('spaces-table-container');
+
+            if (spaces.length === 0) {
+                container.innerHTML = '<div class="empty-state">No canvas spaces found</div>';
+                return;
+            }
+
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Canvas Space ID</th>
+                            <th>Mapped Room</th>
+                            <th>Created At</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            spaces.forEach(space => {
+                // Determine if CreatedAt is a string (ISO) or object
+                let created = space.created_at;
+                if (typeof created === 'object' && created !== null) {
+                    // Go time marshals to string usually, but just in case
+                    created = new Date(created).toLocaleString();
+                } else if (typeof created === 'string') {
+                    created = new Date(created).toLocaleString();
+                }
+
+                html += `
+                    <tr>
+                        <td style="color: var(--text-secondary)">#${space.id}</td>
+                        <td style="font-weight: 500">${space.canvas_space_id}</td>
+                        <td style="font-family: monospace; color: var(--accent)">${space.room_name}</td>
+                        <td style="color: var(--text-secondary)">${created}</td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        async function loadData() {
+            const [rooms, spaces] = await Promise.all([
+                fetchRooms(),
+                fetchCanvasSpaces()
+            ]);
+
+            renderRoomsTable(rooms);
+            renderSpacesTable(spaces);
+        }
+
+        // Initial load
+        document.addEventListener('DOMContentLoaded', loadData);
+    </script>
+</body>
+
+</html>

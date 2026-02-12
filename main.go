@@ -26,7 +26,7 @@ type Config struct {
 }
 
 var config Config
-var roomClient *lksdk.RoomServiceClient
+var roomClient RoomService
 var canvasRepo repository.CanvasSpaceRepository
 
 func main() {
@@ -45,11 +45,11 @@ func main() {
 	}
 
 	// Initialize Database
-	db.InitDB()
+	db.InitDB("data/space.db")
 	canvasRepo = repository.NewSQLiteCanvasSpaceRepository(db.DB)
 
 	// Initialize RoomServiceClient
-	roomClient = lksdk.NewRoomServiceClient(config.Host, config.ApiKey, config.ApiSecret)
+	roomClient = NewLiveKitRoomService(lksdk.NewRoomServiceClient(config.Host, config.ApiKey, config.ApiSecret))
 
 	// Initialize Gin
 	r := gin.Default()
@@ -60,6 +60,11 @@ func main() {
 	r.POST("/token", generateToken)
 	r.DELETE("/rooms/:room", deleteRoom)
 	r.GET("/rooms/:room/participants/count", getRoomParticipantCount)
+	r.GET("/rooms/:room/ping", pingRoom)
+
+	// Static files
+	r.Static("/public", "./public")
+	r.StaticFile("/admin", "./public/admin.html")
 
 	// Canvas Space Routes
 	r.POST("/canvas-spaces/token", generateTokenForCanvasSpace)
@@ -121,7 +126,20 @@ func listRooms(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, res.Rooms)
+	activeOnly := c.Query("active") == "true"
+	var rooms []*livekit.Room
+
+	if activeOnly {
+		for _, room := range res.Rooms {
+			if room.NumParticipants > 0 {
+				rooms = append(rooms, room)
+			}
+		}
+	} else {
+		rooms = res.Rooms
+	}
+
+	c.JSON(http.StatusOK, rooms)
 }
 
 func getRoomParticipantCount(c *gin.Context) {
@@ -137,6 +155,34 @@ func getRoomParticipantCount(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"room_name": roomName,
 		"count":     len(res.Participants),
+	})
+}
+
+func pingRoom(c *gin.Context) {
+	roomName := c.Param("room")
+	// We want to see if the room exists and is active.
+	// ListRooms with the specific name is efficient enough if the room exists.
+	res, err := roomClient.ListRooms(context.Background(), &livekit.ListRoomsRequest{
+		Names: []string{roomName},
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(res.Rooms) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{
+			"active": false,
+			"error":  "room not found",
+		})
+		return
+	}
+
+	room := res.Rooms[0]
+	c.JSON(http.StatusOK, gin.H{
+		"active":       true,
+		"participants": room.NumParticipants,
+		"sid":          room.Sid,
 	})
 }
 

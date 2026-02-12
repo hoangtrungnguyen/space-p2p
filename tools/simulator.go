@@ -11,19 +11,23 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 3 {
+	os.Exit(runSimulator(os.Args))
+}
+
+func runSimulator(args []string) int {
+	if len(args) < 3 {
 		fmt.Println("Usage: simulator <host> <token>")
-		os.Exit(1)
+		return 1
 	}
 
-	host := os.Args[1]
-	token := os.Args[2]
+	host := args[1]
+	token := args[2]
 
 	fmt.Printf("Attempting to connect to %s with provided token...\n", host)
 	room, err := lksdk.ConnectToRoomWithToken(host, token, lksdk.NewRoomCallback())
 	if err != nil {
 		fmt.Printf("Failed to connect: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	defer room.Disconnect()
 
@@ -39,4 +43,5 @@ func main() {
 	case <-time.After(30 * time.Second):
 		fmt.Println("Simulation timeout reached, disconnecting...")
 	}
+	return 0
 }

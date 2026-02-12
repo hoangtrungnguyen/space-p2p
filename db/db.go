@@ -11,16 +11,15 @@ import (
 
 var DB *sql.DB
 
-func InitDB() {
-	// Ensure data directory exists
-	dataPath := "data"
-	if err := os.MkdirAll(dataPath, 0755); err != nil {
+func InitDB(dataSourceName string) {
+	// Ensure data directory exists if it's a file path
+	dir := filepath.Dir(dataSourceName)
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		log.Fatal(err)
 	}
 
-	dbPath := filepath.Join(dataPath, "space.db")
 	var err error
-	DB, err = sql.Open("sqlite", dbPath)
+	DB, err = sql.Open("sqlite", dataSourceName)
 	if err != nil {
 		log.Fatal(err)
 	}
