@@ -70,6 +70,7 @@ func main() {
 	r.StaticFile("/admin", "./public/admin.html")
 
 	// Canvas Space Routes
+	r.POST("/canvas-spaces", createCanvasSpace)
 	r.POST("/canvas-spaces/token", generateTokenForCanvasSpace)
 	r.GET("/canvas-spaces", listCanvasSpaces)
 	r.GET("/canvas-spaces/:id", getCanvasSpace)
@@ -96,6 +97,10 @@ type TokenRequest struct {
 type CanvasTokenRequest struct {
 	CanvasSpaceID string `json:"canvas_space_id" binding:"required"`
 	Identity      string `json:"identity" binding:"required"`
+}
+
+type CreateCanvasSpaceRequest struct {
+	CanvasSpaceID string `json:"canvas_space_id" binding:"required"`
 }
 
 // Handlers
@@ -221,6 +226,46 @@ func deleteRoom(c *gin.Context) {
 }
 
 // Canvas Space Handlers
+
+func createCanvasSpace(c *gin.Context) {
+	var req CreateCanvasSpaceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if mapping already exists
+	existing, err := canvasRepo.GetByCanvasSpaceID(req.CanvasSpaceID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if existing != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "Canvas space already exists"})
+		return
+	}
+
+	// Create new mapping
+	newRoomName := "room_" + uuid.New().String()
+
+	// Create LiveKit room ensuring it exists
+	_, err = roomClient.CreateRoom(context.Background(), &livekit.CreateRoomRequest{
+		Name:         newRoomName,
+		EmptyTimeout: 600, // 10 minutes default
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create LiveKit room: " + err.Error()})
+		return
+	}
+
+	cs, err := canvasRepo.Create(req.CanvasSpaceID, newRoomName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create canvas space mapping: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, cs)
+}
 
 func generateTokenForCanvasSpace(c *gin.Context) {
 	var req CanvasTokenRequest
